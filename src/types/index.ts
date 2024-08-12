@@ -45,17 +45,24 @@ export type RNMonnifyProps = {
   contractCode: string;
   paymentDescription?: string;
   autoStart?: boolean;
+  onSuccess: (response: MonnifyWebViewMessage) => {};
+  onCancel: (response: MonnifyWebViewMessage) => {};
+  spinnerColor?: string;
+  ref: React.ReactElement;
 };
 
 export type MonnifyCheckoutRequestData = RNMonnifyProps & {
   metadata: {
     deviceType: string;
   };
-  onComplete: (response: MonnifySuccessResponse) => {};
-  onClose: (response: MonnifyCancelledResponse) => {};
 };
 
-export interface RNMonnifyRef {
+export type RNMonnifyRef = {
   startTransaction: () => void;
   endTransaction: () => void;
-}
+};
+
+export type MonnifyWebViewMessage = {
+  status: 'success' | 'failed';
+  data: MonnifySuccessResponse | MonnifyCancelledResponse;
+};
