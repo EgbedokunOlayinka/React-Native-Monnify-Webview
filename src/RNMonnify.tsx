@@ -1,16 +1,41 @@
 import React, {
-  ReactNode,
   forwardRef,
   useCallback,
   useRef,
   useState,
+  useImperativeHandle,
+  useEffect,
 } from 'react';
-import {Animated, Modal, SafeAreaView, StyleSheet} from 'react-native';
-import {RNMonnifyProps} from './types';
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  View,
+} from 'react-native';
+import {MonnifyWebViewMessage, RNMonnifyProps, RNMonnifyRef} from './types';
 import WebView, {WebViewNavigation} from 'react-native-webview';
+import {TypedJSONParse} from './utils';
 
-const RNMonnify = forwardRef<ReactNode, RNMonnifyProps>(function RNMonnify(
-  props,
+const WINDOW_WIDTH = Dimensions.get('window').width;
+
+const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
+  {
+    amount,
+    currency,
+    reference,
+    customerEmail,
+    customerFullName,
+    apiKey,
+    contractCode,
+    paymentDescription,
+    autoStart,
+    onCancel,
+    onSuccess,
+    spinnerColor = 'blue',
+  },
   ref,
 ) {
   const [isLoading, setIsLoading] = useState(true);
@@ -49,9 +74,93 @@ const RNMonnify = forwardRef<ReactNode, RNMonnifyProps>(function RNMonnify(
     });
   }, []);
 
-  const handleNavStateChange = (state: WebViewNavigation) => {
-    //
-  };
+  const handleNavStateChange = useCallback((state: WebViewNavigation) => {
+    console.log({state});
+  }, []);
+
+  const MonnifyHTML = `
+  <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta http-equiv="X-UA-Compatible" content="ie=edge">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Monnify</title>
+        </head>
+        <body onload="payWithMonnify()" style="background-color:#fff;height:100vh">
+          <script type="text/javascript" src="https://sdk.monnify.com/plugin/monnify.js"></script>
+          <script>
+            function payWithMonnify() {
+                MonnifySDK.initialize({
+                    amount: ${amount},
+                    currency: ${currency || 'NGN'},
+                    reference: ${reference || new String(new Date().getTime())},
+                    customerFullName: ${customerFullName},
+                    customerEmail: ${customerEmail},
+                    apiKey: ${apiKey},
+                    contractCode: ${contractCode},
+                    paymentDescription: ${paymentDescription},
+                    metadata: {
+                        deviceType: 'mobile'
+                    },
+                    onComplete: function(response) {
+                        let response = {status: "success", data: response};
+                        window.ReactNativeWebView.postMessage(JSON.stringify(response));
+                    },
+                    onClose: function(data) {
+                        let response = {status: "failed", data: response};
+                        window.ReactNativeWebView.postMessage(JSON.stringify(response));
+                    }
+                });
+            }
+          </script>
+        </body>
+      </html> 
+  `;
+
+  const handleMessageReceived = useCallback(
+    (data: string) => {
+      const res = TypedJSONParse<MonnifyWebViewMessage>(data);
+
+      if (res?.status === 'success') {
+        setShowModal(false);
+        onSuccess(res);
+        return;
+      }
+
+      if (res?.status === 'failed') {
+        setShowModal(false);
+        onCancel(res);
+      }
+    },
+    [onSuccess, onCancel],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => {
+      return {
+        startTransaction() {
+          setShowModal(true);
+        },
+        endTransaction() {
+          setShowModal(false);
+        },
+      };
+    },
+    [],
+  );
+
+  const autoStartCheck = useCallback(() => {
+    if (autoStart) {
+      setShowModal(true);
+    }
+  }, [autoStart]);
+
+  useEffect(() => {
+    autoStartCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Modal
@@ -62,10 +171,10 @@ const RNMonnify = forwardRef<ReactNode, RNMonnifyProps>(function RNMonnify(
       <SafeAreaView style={styles.container}>
         <WebView
           style={styles.container}
-          // source={{ html: Paystackcontent }}
-          // onMessage={(e) => {
-          //   messageReceived(e.nativeEvent?.data);
-          // }}
+          source={{html: MonnifyHTML}}
+          onMessage={e => {
+            handleMessageReceived(e.nativeEvent?.data);
+          }}
           onLoadStart={handleLoadStart}
           onLoadEnd={handleLoadEnd}
           onNavigationStateChange={handleNavStateChange}
@@ -73,6 +182,34 @@ const RNMonnify = forwardRef<ReactNode, RNMonnifyProps>(function RNMonnify(
           cacheEnabled={false}
           cacheMode={'LOAD_NO_CACHE'}
         />
+
+        <View style={styles.progressContainer}>
+          <View
+            style={[styles.progressLoaderTrack, {backgroundColor: 'white'}]}>
+            <Animated.View
+              style={[
+                styles.progressLoader,
+                {
+                  backgroundColor: 'black',
+                  transform: [
+                    {
+                      scaleX: progressAnimation.current.interpolate({
+                        inputRange: [0, 0.8],
+                        outputRange: [0, 1],
+                        extrapolate: 'clamp',
+                      }),
+                    },
+                  ],
+                  opacity: progressAnimation.current.interpolate({
+                    inputRange: [0, 0.9, 1],
+                    outputRange: [1, 1, 0],
+                  }),
+                },
+              ]}
+            />
+            <ActivityIndicator size="large" color={spinnerColor} />
+          </View>
+        </View>
       </SafeAreaView>
     </Modal>
   );
@@ -82,4 +219,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  progressLoaderTrack: {
+    width: WINDOW_WIDTH,
+    height: 3,
+    position: 'absolute',
+    left: 0,
+    bottom: 0,
+  },
+  progressLoader: {
+    width: WINDOW_WIDTH * 2,
+    left: -WINDOW_WIDTH,
+    height: 3,
+  },
+  progressContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
 });
+
+export default RNMonnify;
