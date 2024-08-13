@@ -5,6 +5,7 @@ import React, {
   useState,
   useImperativeHandle,
   useEffect,
+  ReactNode,
 } from 'react';
 import {
   ActivityIndicator,
@@ -24,13 +25,13 @@ const WINDOW_WIDTH = Dimensions.get('window').width;
 const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
   {
     amount,
-    currency,
-    reference,
+    currency = 'NGN',
+    reference = new String(new Date().getTime()),
     customerEmail,
     customerFullName,
     apiKey,
     contractCode,
-    paymentDescription,
+    paymentDescription = 'test',
     autoStart,
     onCancel,
     onSuccess,
@@ -86,20 +87,18 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
           <meta http-equiv="X-UA-Compatible" content="ie=edge">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Monnify</title>
-        </head>
-        <body onload="payWithMonnify()" style="background-color:#fff;height:100vh">
-          <script type="text/javascript" src="https://sdk.monnify.com/plugin/monnify.js"></script>
-          <script>
+          <script type="text/javascript" src="https://sdk.monnify.com/plugin/monnify.js" async></script>
+          <script defer>
             function payWithMonnify() {
                 MonnifySDK.initialize({
-                    amount: ${amount},
-                    currency: ${currency || 'NGN'},
-                    reference: ${reference || new String(new Date().getTime())},
-                    customerFullName: ${customerFullName},
-                    customerEmail: ${customerEmail},
-                    apiKey: ${apiKey},
-                    contractCode: ${contractCode},
-                    paymentDescription: ${paymentDescription},
+                    amount: "${amount}",
+                    currency: "${currency}",
+                    reference: "${reference}",
+                    customerFullName: "${customerFullName}",
+                    customerEmail: "${customerEmail}",
+                    apiKey: "${apiKey}",
+                    contractCode: "${contractCode}",
+                    paymentDescription: "${paymentDescription}",
                     metadata: {
                         deviceType: 'mobile'
                     },
@@ -114,12 +113,42 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
                 });
             }
           </script>
+        </head>
+        <body onload="payWithMonnify()" style="background-color:#fff;height:100vh">
+        </body>
+      </html> 
+  `;
+
+  const MonnifyHTMLs = `
+  <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta http-equiv="X-UA-Compatible" content="ie=edge">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Monnify</title>
+        </head>
+        <body style="background-color:#fff;height:100vh">
+        <script type="text/javascript">
+        var sdkScript = document.createElement("script");
+        sdkScript.type = "text/javascript";
+        sdkScript.src = "https://sdk.monnify.com/plugin/monnify.js";
+        
+        sdkScript.onload = function () {
+          alert(456)
+          // payWithMonnify();
+        };
+        alert(123)
+    
+          document.head.appendChild(sdkScript);
+        </script>
         </body>
       </html> 
   `;
 
   const handleMessageReceived = useCallback(
     (data: string) => {
+      console.log({data});
       const res = TypedJSONParse<MonnifyWebViewMessage>(data);
 
       if (res?.status === 'success') {
@@ -171,7 +200,7 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
       <SafeAreaView style={styles.container}>
         <WebView
           style={styles.container}
-          source={{html: MonnifyHTML}}
+          source={{html: MonnifyHTMLs}}
           onMessage={e => {
             handleMessageReceived(e.nativeEvent?.data);
           }}
@@ -183,7 +212,13 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
           cacheMode={'LOAD_NO_CACHE'}
         />
 
-        <View style={styles.progressContainer}>
+        {isLoading && (
+          <View>
+            <ActivityIndicator size="large" color={spinnerColor} />
+          </View>
+        )}
+
+        {/* <View style={styles.progressContainer}>
           <View
             style={[styles.progressLoaderTrack, {backgroundColor: 'white'}]}>
             <Animated.View
@@ -209,7 +244,7 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
             />
             <ActivityIndicator size="large" color={spinnerColor} />
           </View>
-        </View>
+        </View> */}
       </SafeAreaView>
     </Modal>
   );
