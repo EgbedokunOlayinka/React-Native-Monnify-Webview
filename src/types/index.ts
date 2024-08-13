@@ -46,8 +46,7 @@ export type RNMonnifyProps = {
   paymentDescription?: string;
   autoStart?: boolean;
   onSuccess: (response: MonnifyWebViewMessage) => void;
-  onCancel: (response: MonnifyWebViewMessage) => void;
-  spinnerColor?: string;
+  onCancel: () => void;
   ref: React.ReactElement;
 };
 
