@@ -5,10 +5,8 @@ import React, {
   useState,
   useImperativeHandle,
   useEffect,
-  ReactNode,
 } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Dimensions,
   Modal,
@@ -26,7 +24,7 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
   {
     amount,
     currency = 'NGN',
-    reference = new String(new Date().getTime()),
+    reference,
     customerEmail,
     customerFullName,
     apiKey,
@@ -34,18 +32,15 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
     paymentDescription = 'test',
     autoStart,
     onCancel,
-    onSuccess,
-    spinnerColor = 'blue',
+    onSuccess
   },
   ref,
 ) {
-  const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const webviewRef = useRef<WebView>(null);
   const progressAnimation = useRef(new Animated.Value(0));
 
   const handleLoadStart = useCallback(() => {
-    setIsLoading(true);
     Animated.sequence([
       Animated.timing(progressAnimation.current, {
         toValue: 0,
@@ -70,9 +65,7 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
       toValue: 1,
       duration: 1200,
       useNativeDriver: true,
-    }).start(() => {
-      setIsLoading(false);
-    });
+    }).start();
   }, []);
 
   const handleNavStateChange = useCallback((state: WebViewNavigation) => {
@@ -87,79 +80,58 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
           <meta http-equiv="X-UA-Compatible" content="ie=edge">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>Monnify</title>
-          <script type="text/javascript" src="https://sdk.monnify.com/plugin/monnify.js" async></script>
-          <script defer>
-            function payWithMonnify() {
-                MonnifySDK.initialize({
-                    amount: "${amount}",
-                    currency: "${currency}",
-                    reference: "${reference}",
-                    customerFullName: "${customerFullName}",
-                    customerEmail: "${customerEmail}",
-                    apiKey: "${apiKey}",
-                    contractCode: "${contractCode}",
-                    paymentDescription: "${paymentDescription}",
-                    metadata: {
-                        deviceType: 'mobile'
-                    },
-                    onComplete: function(response) {
-                        let response = {status: "success", data: response};
-                        window.ReactNativeWebView.postMessage(JSON.stringify(response));
-                    },
-                    onClose: function(data) {
-                        let response = {status: "failed", data: response};
-                        window.ReactNativeWebView.postMessage(JSON.stringify(response));
-                    }
-                });
-            }
-          </script>
-        </head>
-        <body onload="payWithMonnify()" style="background-color:#fff;height:100vh">
-        </body>
-      </html> 
-  `;
-
-  const MonnifyHTMLs = `
-  <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta http-equiv="X-UA-Compatible" content="ie=edge">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Monnify</title>
         </head>
         <body style="background-color:#fff;height:100vh">
-        <script type="text/javascript">
-        var sdkScript = document.createElement("script");
-        sdkScript.type = "text/javascript";
-        sdkScript.src = "https://sdk.monnify.com/plugin/monnify.js";
+          <script type="text/javascript">
+            var sdkScript = document.createElement("script");
+            sdkScript.type = "text/javascript";
+            sdkScript.src = "https://sdk.monnify.com/plugin/monnify.js";
+            
+            sdkScript.onload = function () {
+              payWithMonnify()
+            };
+              
+            function payWithMonnify() {
+              if(window.MonnifySDK) {
+                window.MonnifySDK.initialize({
+                  amount: "${amount}",
+                  currency: "${currency || "NGN"}",
+                  reference: "${reference || new String(new Date().getTime())}",
+                  customerFullName: "${customerFullName}",
+                  customerEmail: "${customerEmail}",
+                  apiKey: "${apiKey}",
+                  contractCode: "${contractCode}",
+                  paymentDescription: "${paymentDescription || ""}",
+                  metadata: {
+                    deviceType: "mobile"
+                  },
+                  onLoadStart: function() {},
+                  onLoadComplete: function() {},
+                  onComplete: function(response) {},
+                  onClose: function(response) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify(response));
+                  }
+                })
+              }
+            }
         
-        sdkScript.onload = function () {
-          alert(456)
-          // payWithMonnify();
-        };
-        alert(123)
-    
-          document.head.appendChild(sdkScript);
-        </script>
+            document.head.appendChild(sdkScript);
+          </script>
         </body>
       </html> 
   `;
 
   const handleMessageReceived = useCallback(
     (data: string) => {
-      console.log({data});
       const res = TypedJSONParse<MonnifyWebViewMessage>(data);
-
-      if (res?.status === 'success') {
+      console.log(res)
+      if (res?.status?.toLowerCase().includes('success')) {
         setShowModal(false);
         onSuccess(res);
         return;
-      }
-
-      if (res?.status === 'failed') {
+      } else {
         setShowModal(false);
-        onCancel(res);
+        onCancel();
       }
     },
     [onSuccess, onCancel],
@@ -200,7 +172,7 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
       <SafeAreaView style={styles.container}>
         <WebView
           style={styles.container}
-          source={{html: MonnifyHTMLs}}
+          source={{html: MonnifyHTML}}
           onMessage={e => {
             handleMessageReceived(e.nativeEvent?.data);
           }}
@@ -210,15 +182,10 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
           ref={webviewRef}
           cacheEnabled={false}
           cacheMode={'LOAD_NO_CACHE'}
+          webviewDebuggingEnabled
         />
 
-        {isLoading && (
-          <View>
-            <ActivityIndicator size="large" color={spinnerColor} />
-          </View>
-        )}
-
-        {/* <View style={styles.progressContainer}>
+        <View style={styles.progressContainer}>
           <View
             style={[styles.progressLoaderTrack, {backgroundColor: 'white'}]}>
             <Animated.View
@@ -242,9 +209,8 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
                 },
               ]}
             />
-            <ActivityIndicator size="large" color={spinnerColor} />
           </View>
-        </View> */}
+        </View>
       </SafeAreaView>
     </Modal>
   );
