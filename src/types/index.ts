@@ -58,7 +58,6 @@ export type MonnifyCheckoutRequestData = RNMonnifyProps & {
 
 export type RNMonnifyRef = {
   startTransaction: () => void;
-  endTransaction: () => void;
 };
 
 export type MonnifyWebViewMessage = {

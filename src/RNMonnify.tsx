@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import {MonnifyWebViewMessage, RNMonnifyProps, RNMonnifyRef} from './types';
-import WebView, {WebViewNavigation} from 'react-native-webview';
+import WebView from 'react-native-webview';
 import {TypedJSONParse} from './utils';
 
 const WINDOW_WIDTH = Dimensions.get('window').width;
@@ -66,10 +66,6 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
       duration: 1200,
       useNativeDriver: true,
     }).start();
-  }, []);
-
-  const handleNavStateChange = useCallback((state: WebViewNavigation) => {
-    console.log({state});
   }, []);
 
   const MonnifyHTML = `
@@ -124,7 +120,6 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
   const handleMessageReceived = useCallback(
     (data: string) => {
       const res = TypedJSONParse<MonnifyWebViewMessage>(data);
-      console.log(res)
       if (res?.status?.toLowerCase().includes('success')) {
         setShowModal(false);
         onSuccess(res);
@@ -143,10 +138,7 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
       return {
         startTransaction() {
           setShowModal(true);
-        },
-        endTransaction() {
-          setShowModal(false);
-        },
+        }
       };
     },
     [],
@@ -178,11 +170,10 @@ const RNMonnify = forwardRef<RNMonnifyRef, RNMonnifyProps>(function RNMonnify(
           }}
           onLoadStart={handleLoadStart}
           onLoadEnd={handleLoadEnd}
-          onNavigationStateChange={handleNavStateChange}
           ref={webviewRef}
           cacheEnabled={false}
           cacheMode={'LOAD_NO_CACHE'}
-          webviewDebuggingEnabled
+          // webviewDebuggingEnabled
         />
 
         <View style={styles.progressContainer}>
